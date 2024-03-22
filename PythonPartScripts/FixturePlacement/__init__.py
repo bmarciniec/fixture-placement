@@ -96,6 +96,7 @@ class FixturePlacementInteractor(BaseInteractor):
         self.placement_angle          = AllplanGeo.Angle()
         self.placement_point          = AllplanGeo.Point3D()
         self.selected_pythonpart      = AllplanBasisElements.MacroPlacementElement()
+        self.trace_pnt                = AllplanGeo.Point3D()
         self.build_ele_list           = build_ele_list
         self.build_ele                = self.build_ele_list[0]
         self.control_props_list       = control_props_list
@@ -117,7 +118,11 @@ class FixturePlacementInteractor(BaseInteractor):
 
     @property
     def pythonpart_filter(self) -> AllplanIFW.ElementSelectFilterSetting:
-        """Property with a selection filter accepting only PythonParts"""
+        """Property with a selection filter accepting only PythonParts
+
+        Returns:
+            Selection filter
+        """
         type_uuids = [AllplanIFW.QueryTypeID(AllplanElementAdapter.PythonPart_TypeUUID)]
         selection_query = AllplanIFW.SelectionQuery(type_uuids)
         return AllplanIFW.ElementSelectFilterSetting(selection_query, False)
@@ -311,7 +316,12 @@ class FixturePlacementInteractor(BaseInteractor):
             ele_found = self.coord_input.SelectElement(mouse_msg, pnt, msg_info,
                                                        True, False, False)
         else:
-            self.placement_point = self.coord_input.GetInputPoint(mouse_msg, pnt, msg_info).GetPoint()
+            self.placement_point = self.coord_input.GetInputPoint(mouse_msg,
+                                                                  pnt,
+                                                                  msg_info,
+                                                                  self.trace_pnt,
+                                                                  self.input_mode == self.InputMode.MOVE).GetPoint()
+
 
             if self.build_ele_list[0].SnapByRadioGroup.value == "SnapByRay":
                 self.placement_matrix = self.snap.snap_by_ray(self.placement_point,
@@ -348,9 +358,12 @@ class FixturePlacementInteractor(BaseInteractor):
         self.selected_pythonpart = cast(AllplanBasisElements.MacroPlacementElement,
                                         AllplanBaseElements.GetElements(pythonpart_adapter)[0])
         # reset the placement matrix
-        placement_props                                   = self.selected_pythonpart.MacroPlacementProperties
-        placement_props.Matrix                            = AllplanGeo.Matrix3D()
-        self.selected_pythonpart.MacroPlacementProperties = placement_props
+        placement_props        = self.selected_pythonpart.MacroPlacementProperties
+        translation_vec        = placement_props.Matrix.GetTranslationVector()
+        self.trace_pnt         = AllplanGeo.Point3D(translation_vec.X, translation_vec.Y, translation_vec.Z)
+        placement_props.Matrix = AllplanGeo.Matrix3D()
+
+        self.selected_pythonpart.SetMacroPlacementProperties(placement_props)
 
         # hide the original
         AllplanIFW.VisibleService.ShowElements(pythonpart_adapter, False)
