@@ -16,7 +16,9 @@ from BuildingElement import BuildingElement
 from BuildingElementComposite import BuildingElementComposite
 from BuildingElementControlProperties import BuildingElementControlProperties
 from BuildingElementPaletteService import BuildingElementPaletteService
+from PythonPartTransaction import PythonPartTransaction
 from StringTableService import StringTableService
+from TypeCollections.ModificationElementList import ModificationElementList
 from VisualScriptService import VisualScriptService
 
 from .SnapToSolid import SnapToSolid
@@ -44,7 +46,7 @@ def create_interactor(coord_input        : AllplanIFW.CoordinateInput,
                       build_ele_list     : list[BuildingElement],
                       build_ele_composite: BuildingElementComposite,
                       control_props_list : list[BuildingElementControlProperties],
-                      _modify_uuid_list  : list) -> Any                 :
+                      _modify_uuid_list  : ModificationElementList) -> Any                 :
     """
     Create the interactor
 
@@ -65,9 +67,8 @@ def create_interactor(coord_input        : AllplanIFW.CoordinateInput,
 
 
 class FixturePlacementInteractor(BaseInteractor):
-    """
-    Definition of class WallGeometryInteractor
-    """
+    """Definition of class WallGeometryInteractor"""
+
     class InputMode(enum.IntEnum):
         """ Definition of the input modes
         """
@@ -87,17 +88,8 @@ class FixturePlacementInteractor(BaseInteractor):
                  build_ele_list     : list[BuildingElement],
                  build_ele_composite: BuildingElementComposite,
                  control_props_list : list[BuildingElementControlProperties]):
-        """
-        Initialization of class WallGeometryInteractor
+        """Initialize"""
 
-        Args:
-            coord_input:            coordinate input
-            pyp_path:               path of the pyp file
-            str_table_service:      string table service
-            build_ele_list:         list with building elements
-            build_ele_composite:    building element composite
-            control_props_list:     list with control properties
-        """
         self.__input_mode             = self.InputMode.SELECTION
         self.coord_input              = coord_input
         self.doc                      = self.coord_input.GetInputViewDocument()
@@ -219,7 +211,7 @@ class FixturePlacementInteractor(BaseInteractor):
             AllplanIFW.HighlightService.CancelAllHighlightedElements(self.coord_input.GetInputViewDocumentID())
 
         # in placement mode, pass the argument to the visual script service
-        if self.input_mode == self.InputMode.PLACEMENT:
+        if self.input_mode == self.InputMode.PLACEMENT and self.visual_script_service is not None:
             self.visual_script_service.modify_element_property(page, name, value)
         else:
             if self.main_palette_service.modify_element_property(page, name, value):
@@ -241,7 +233,7 @@ class FixturePlacementInteractor(BaseInteractor):
             event_id: event id of button control.
         """
         # when a VS is loaded, do the same as during input in the dialog line
-        if self.input_mode == self.InputMode.PLACEMENT:
+        if self.input_mode == self.InputMode.PLACEMENT and self.visual_script_service is not None:
             self.visual_script_service.on_control_event(event_id)
 
     def on_mouse_leave(self):
@@ -351,12 +343,7 @@ class FixturePlacementInteractor(BaseInteractor):
         self.input_mode = self.InputMode.MOVE
 
     def create_elements(self):
-        """Create the elements in the database
-
-        TODO:
-            -   elements should be created all at once
-            -   attributes should be assigned before creation
-        """
+        """Create the elements in the database by executing a PythonPart transaction"""
         if self.input_mode == self.InputMode.PLACEMENT and self.visual_script_service is not None:
             elements_to_create = self.visual_script_service.create_pythonpart(AllplanGeo.Matrix3D(),
                                                                               AllplanGeo.Matrix3D())
@@ -365,14 +352,10 @@ class FixturePlacementInteractor(BaseInteractor):
         else:
             elements_to_create = []
 
-
-        # Creating the PythonPart in the model, when mouse click detected
-        # TODO: use PyhtonPartTransaction
-        AllplanBaseElements.CreateElements(doc           = self.coord_input.GetInputViewDocument(),
-                                           insertionMat  = self.placement_matrix,
-                                           modelEleList  = elements_to_create,
-                                           modelUuidList = [],
-                                           assoRefObj    = None)
+        pyp_transaction = PythonPartTransaction(self.coord_input.GetInputViewDocument())
+        pyp_transaction.execute(self.placement_matrix,
+                                self.coord_input.GetViewWorldProjection(),
+                                elements_to_create,ModificationElementList())
 
     def init_placement_coord_input(self):
         """Initialize the coordinate input with the correct settings"""
