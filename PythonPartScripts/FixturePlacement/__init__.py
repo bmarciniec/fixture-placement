@@ -1,14 +1,13 @@
-"""
-Script for Fixture Placement
-"""
+"""Script for Fixture Placement"""
 
 from __future__ import annotations
 
 import enum
 import os
-from typing import Any
+from typing import Any, cast
 
 import NemAll_Python_BaseElements as AllplanBaseElements
+import NemAll_Python_BasisElements as AllplanBasisElements
 import NemAll_Python_Geometry as AllplanGeo
 import NemAll_Python_IFW_ElementAdapter as AllplanElementAdapter
 import NemAll_Python_IFW_Input as AllplanIFW
@@ -37,7 +36,7 @@ def check_allplan_version(_build_ele, version):
     """
 
     # Support all versions
-    return float(version) >= 2024
+    return float(version) >= 2025
 
 def create_interactor(coord_input        : AllplanIFW.CoordinateInput,
                       _pyp_path          : str,
@@ -80,6 +79,7 @@ class FixturePlacementInteractor(BaseInteractor):
         MOVE = 2
         """Input mode, where the user moves an existing PythonPart with the snap functionality"""
 
+
     def __init__(self,
                  coord_input        : AllplanIFW.CoordinateInput,
                  pyp_path           : str,
@@ -109,6 +109,7 @@ class FixturePlacementInteractor(BaseInteractor):
         self.placement_angle          = AllplanGeo.Angle()
         self.placement_point          = AllplanGeo.Point3D()
         self.reference_element        = AllplanElementAdapter.BaseElementAdapter()
+        self.selected_pythonpart      = AllplanBasisElements.MacroPlacementElement()
         self.build_ele_list           = build_ele_list
         self.build_ele                = self.build_ele_list[0]
         self.control_props_list       = control_props_list
@@ -121,10 +122,19 @@ class FixturePlacementInteractor(BaseInteractor):
                                                                   None,
                                                                   self.control_props_list,
                                                                   pyp_path)
+        self.main_palette_service.show_palette(self.build_ele_list[0].script_name)
+
+        self.input_mode             = self.InputMode.SELECTION
 
         # show the main palette and message in the dialog line
-        self.main_palette_service.show_palette(self.build_ele_list[0].script_name)
-        self.coord_input.InitFirstElementInput(AllplanIFW.InputStringConvert("Select fixture to place"))
+        # self.coord_input.InitFirstElementInput(AllplanIFW.InputStringConvert("Select fixture to place"))
+
+    @property
+    def pythonpart_filter(self) -> AllplanIFW.ElementSelectFilterSetting:
+        """Property with a selection filter accepting only PythonParts"""
+        type_uuids = [AllplanIFW.QueryTypeID(AllplanElementAdapter.PythonPart_TypeUUID)]
+        selection_query = AllplanIFW.SelectionQuery(type_uuids)
+        return AllplanIFW.ElementSelectFilterSetting(selection_query, False)
 
     @property
     def input_mode(self) -> FixturePlacementInteractor.InputMode:
@@ -149,10 +159,17 @@ class FixturePlacementInteractor(BaseInteractor):
                 self.build_ele.FixtureFilePath.value = ""
                 self.main_palette_service.refresh_palette(self.build_ele_list, self.control_props_list)
                 self.main_palette_service.update_palette(-1, True)
-            self.coord_input.InitFirstElementInput(AllplanIFW.InputStringConvert("Select fixture to place"))
+
+            elif self.selected_pythonpart != AllplanBasisElements.MacroPlacementElement():
+                self.selected_pythonpart = AllplanBasisElements.MacroPlacementElement()
+
+            prompt_msg = AllplanIFW.InputStringConvert("Select a VS-PythonPart from library or pick one from the model")
+            self.coord_input.InitFirstElementInput(prompt_msg)
+            self.coord_input.SetElementFilter(self.pythonpart_filter)
+
 
         # by changing the mode to placement show the VS palette and start coordinate input
-        if value == self.InputMode.PLACEMENT:
+        elif value == self.InputMode.PLACEMENT:
             if not (vs_pythonpart_path := self.build_ele.FixtureFilePath.value).endswith(".pyp"):
                 raise ValueError(f"The path to the VS-PythonPart is invalid: {vs_pythonpart_path}]")
 
@@ -163,6 +180,8 @@ class FixturePlacementInteractor(BaseInteractor):
                                                              self.build_ele_list,
                                                              self.control_props_list,
                                                              [])
+            self.init_placement_coord_input()
+        else:
             self.init_placement_coord_input()
 
         self.__input_mode = value
@@ -249,7 +268,7 @@ class FixturePlacementInteractor(BaseInteractor):
             True when python part can be closed after the event, False when it should still run
         """
 
-        if self.input_mode == self.InputMode.PLACEMENT:
+        if self.input_mode in [self.InputMode.PLACEMENT, self.InputMode.MOVE]:
             self.input_mode = self.InputMode.SELECTION
 
             return False
@@ -284,27 +303,52 @@ class FixturePlacementInteractor(BaseInteractor):
 
         # do nothing, if no fixture specified
         if self.input_mode == self.InputMode.SELECTION:
-            #TODO: implement pythonPart selection here
-            return True
+            ele_found = self.coord_input.SelectElement(mouse_msg, pnt, msg_info,
+                                                       True, False, False)
+        else:
+            self.placement_point = self.coord_input.GetInputPoint(mouse_msg, pnt, msg_info).GetPoint()
 
-        self.placement_point = self.coord_input.GetInputPoint(mouse_msg, pnt, msg_info).GetPoint()
-
-        if self.coord_input.IsMouseMove(mouse_msg):
-            if self.build_ele_list[0].SnapByRadioGroup.value == "SnapByRay":
-                self.placement_matrix = self.snap.snap_by_ray(self.placement_point,
-                                                              self.placement_angle,
-                                                              mouse_msg, msg_info)
-            else:
-                self.placement_matrix = self.snap.snap_by_point(self.placement_point,
+            if self.coord_input.IsMouseMove(mouse_msg):
+                if self.build_ele_list[0].SnapByRadioGroup.value == "SnapByRay":
+                    self.placement_matrix = self.snap.snap_by_ray(self.placement_point,
                                                                 self.placement_angle,
-                                                                mouse_msg, pnt, msg_info)
+                                                                mouse_msg, msg_info)
+                else:
+                    self.placement_matrix = self.snap.snap_by_point(self.placement_point,
+                                                                    self.placement_angle,
+                                                                    mouse_msg, pnt, msg_info)
+
         self.draw_preview()
 
         if not self.coord_input.IsMouseMove(mouse_msg):
-            self.create_elements()
-            self.init_placement_coord_input()
-
+            if self.input_mode == self.InputMode.SELECTION and ele_found:
+                self.pick_up_pythonpart()
+            elif self.input_mode in [self.InputMode.PLACEMENT, self.InputMode.MOVE]:
+                self.create_elements()
+                self.input_mode = self.InputMode.SELECTION
         return True
+
+    def pick_up_pythonpart(self):
+        """Pick up selected PythonPart.
+
+        -   Get MacroPlacement from selected pythonpart
+        -   Reset its placement matrix
+        -   Save it in the appriopriate instance attribute
+        """
+        # get python object
+        pythonpart_adapter       = self.coord_input.GetSelectedElements()
+        self.selected_pythonpart = cast(AllplanBasisElements.MacroPlacementElement,
+                                        AllplanBaseElements.GetElements(pythonpart_adapter)[0])
+        # reset the placement matrix
+        placement_props                                   = self.selected_pythonpart.MacroPlacementProperties
+        placement_props.Matrix                            = AllplanGeo.Matrix3D()
+        self.selected_pythonpart.MacroPlacementProperties = placement_props
+
+        # hide the original
+        AllplanIFW.VisibleService.ShowElements(pythonpart_adapter, False)
+
+        # change input mode
+        self.input_mode = self.InputMode.MOVE
 
     def create_elements(self):
         """Create the elements in the database
@@ -313,18 +357,20 @@ class FixturePlacementInteractor(BaseInteractor):
             -   elements should be created all at once
             -   attributes should be assigned before creation
         """
-        if self.visual_script_service is not None:
-            vs_python_part_elements = self.visual_script_service.create_pythonpart(AllplanGeo.Matrix3D(),
-                                                                                   AllplanGeo.Matrix3D())
+        if self.input_mode == self.InputMode.PLACEMENT and self.visual_script_service is not None:
+            elements_to_create = self.visual_script_service.create_pythonpart(AllplanGeo.Matrix3D(),
+                                                                              AllplanGeo.Matrix3D())
+        elif self.input_mode == self.InputMode.MOVE:
+            elements_to_create = [self.selected_pythonpart]
         else:
-            vs_python_part_elements = []
+            elements_to_create = []
 
 
         # Creating the PythonPart in the model, when mouse click detected
         # TODO: use PyhtonPartTransaction
         AllplanBaseElements.CreateElements(doc           = self.coord_input.GetInputViewDocument(),
                                            insertionMat  = self.placement_matrix,
-                                           modelEleList  = vs_python_part_elements,
+                                           modelEleList  = elements_to_create,
                                            modelUuidList = [],
                                            assoRefObj    = None)
 
@@ -352,5 +398,9 @@ class FixturePlacementInteractor(BaseInteractor):
                                                    bDirectDraw  = False,    # FIXME: preview is not shown in the UVS
                                                    assoRefObj   = None)
         elif self.input_mode == self.InputMode.MOVE:
-            # TODO: implement the preview for the
+            AllplanBaseElements.DrawElementPreview(self.coord_input.GetInputViewDocument(),
+                                                   self.placement_matrix,
+                                                   [self.selected_pythonpart],
+                                                   bDirectDraw  = False,    # FIXME: preview is not shown in the UVS
+                                                   assoRefObj   = None)
             return

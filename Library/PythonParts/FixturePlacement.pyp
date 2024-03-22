@@ -3,7 +3,7 @@
     <Script>
         <Name>FixturePlacement.py</Name>
         <Title>FixturePlacement</Title>
-        <Version>2023.21</Version>
+        <Version>0.2</Version>
         <Interactor>True</Interactor>
         <ReadLastInput>False</ReadLastInput>
     </Script>
