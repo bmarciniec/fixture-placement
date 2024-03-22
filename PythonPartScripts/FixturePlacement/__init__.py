@@ -322,7 +322,6 @@ class FixturePlacementInteractor(BaseInteractor):
                                                                   self.trace_pnt,
                                                                   self.input_mode == self.InputMode.MOVE).GetPoint()
 
-
             if self.build_ele_list[0].SnapByRadioGroup.value == "SnapByRay":
                 self.placement_matrix = self.snap.snap_by_ray(self.placement_point,
                                                               self.placement_angle,
@@ -371,8 +370,8 @@ class FixturePlacementInteractor(BaseInteractor):
     def create_elements(self):
         """Create the elements in the database by executing a PythonPart transaction
 
-        In PLACE mode creates the VS-PythonPart using VisualScriptService
-        In MOVE mode modifies (moves) the selected PythonPart
+        In PLACE mode creates the VS-PythonPart using VisualScriptService.
+        In MOVE mode modifies (moves) the selected PythonPart.
         """
         if self.input_mode == self.InputMode.PLACE and self.visual_script_service is not None:
             elements_to_create = self.visual_script_service.create_pythonpart(AllplanGeo.Matrix3D(),
@@ -397,12 +396,11 @@ class FixturePlacementInteractor(BaseInteractor):
         the fixture around its local Z axis
         """
 
-        prompt = AllplanIFW.InputStringConvert("Place the PythonPart; rotation around Z axis:")
-
+        prompt        = AllplanIFW.InputStringConvert("Place the PythonPart; rotation around Z axis:")
         input_control = AllplanIFW.ValueInputControlData(AllplanIFW.eValueInputControlType.eANGLE_COMBOBOX,
                                                          initValue     = 0,
-                                                         minValue      = -3.14590,
-                                                         maxValue      = 3.1459,
+                                                         minValue      = -3.14159,
+                                                         maxValue      = 3.14159,
                                                          bSetFocus     = True,
                                                          bDisableCoord = False)
 
@@ -416,11 +414,11 @@ class FixturePlacementInteractor(BaseInteractor):
             AllplanBaseElements.DrawElementPreview(self.doc,
                                                    self.placement_matrix,
                                                    self.visual_script_service.get_preview_elements(),
-                                                   bDirectDraw  = False,    # FIXME: preview is not shown in the UVS
-                                                   assoRefObj   = None)
+                                                   bDirectDraw  = False,
+                                                   assoRefObj   = self.coord_input.GetInputAssocView())
         elif self.input_mode == self.InputMode.MOVE:
             AllplanBaseElements.DrawElementPreview(self.doc,
                                                    self.placement_matrix,
                                                    [self.selected_pythonpart],
-                                                   bDirectDraw  = False,    # FIXME: preview is not shown in the UVS
-                                                   assoRefObj   = None)
+                                                   bDirectDraw  = False,
+                                                   assoRefObj   = self.coord_input.GetInputAssocView())
