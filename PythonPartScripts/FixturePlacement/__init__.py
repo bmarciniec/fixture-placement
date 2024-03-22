@@ -4,6 +4,7 @@ Script for Fixture Placement
 
 from __future__ import annotations
 
+import enum
 import os
 from typing import Any
 
@@ -68,6 +69,16 @@ class FixturePlacementInteractor(BaseInteractor):
     """
     Definition of class WallGeometryInteractor
     """
+    class InputMode(enum.IntEnum):
+        """ Definition of the input modes
+        """
+
+        SELECTION  = 0
+        """Input mode, where the user selects a VS-PythonPart from the library OR an existing PythonPart """
+        PLACEMENT = 1
+        """Input mode, where the user places a new VS-PythonPart selected from the library"""
+        MOVE = 2
+        """Input mode, where the user moves an existing PythonPart with the snap functionality"""
 
     def __init__(self,
                  coord_input        : AllplanIFW.CoordinateInput,
@@ -87,6 +98,7 @@ class FixturePlacementInteractor(BaseInteractor):
             build_ele_composite:    building element composite
             control_props_list:     list with control properties
         """
+        self.__input_mode             = self.InputMode.SELECTION
         self.coord_input              = coord_input
         self.doc                      = self.coord_input.GetInputViewDocument()
         self.pyp_path                 = pyp_path
@@ -100,7 +112,6 @@ class FixturePlacementInteractor(BaseInteractor):
         self.build_ele_list           = build_ele_list
         self.build_ele                = self.build_ele_list[0]
         self.control_props_list       = control_props_list
-        self.fixture_file_path        = ""
         self.visual_script_service    = None
         self.snap                     = SnapToSolid(self.coord_input)
 
@@ -115,18 +126,46 @@ class FixturePlacementInteractor(BaseInteractor):
         self.main_palette_service.show_palette(self.build_ele_list[0].script_name)
         self.coord_input.InitFirstElementInput(AllplanIFW.InputStringConvert("Select fixture to place"))
 
-    def create_vs_service(self, visual_script_path: str) -> VisualScriptService:
-        """ create the service for the VS script
+    @property
+    def input_mode(self) -> FixturePlacementInteractor.InputMode:
+        """Property for the current input mode.
+
+        Changing it from SELECT to PLACEMENT shows the VS-palette
 
         Returns:
-            created script service
+            Current input mode
+
+        Raises:
+            ValueError: when by swithing to PLACEMENT the path to VS-pythonpart is invalid
         """
-        return VisualScriptService(self.coord_input,
-                                   visual_script_path,
-                                   self.str_table_service,
-                                   self.build_ele_list,
-                                   self.control_props_list,
-                                   [])
+        return self.__input_mode
+
+    @input_mode.setter
+    def input_mode(self, value: FixturePlacementInteractor.InputMode):
+        # by changing the mode to selection, close VS palette and show default palette
+        if value == self.InputMode.SELECTION:
+            if self.visual_script_service is not None:
+                self.visual_script_service = None
+                self.build_ele.FixtureFilePath.value = ""
+                self.main_palette_service.refresh_palette(self.build_ele_list, self.control_props_list)
+                self.main_palette_service.update_palette(-1, True)
+            self.coord_input.InitFirstElementInput(AllplanIFW.InputStringConvert("Select fixture to place"))
+
+        # by changing the mode to placement show the VS palette and start coordinate input
+        if value == self.InputMode.PLACEMENT:
+            if not (vs_pythonpart_path := self.build_ele.FixtureFilePath.value).endswith(".pyp"):
+                raise ValueError(f"The path to the VS-PythonPart is invalid: {vs_pythonpart_path}]")
+
+            self.main_palette_service.close_palette()
+            self.visual_script_service = VisualScriptService(self.coord_input,
+                                                             vs_pythonpart_path,
+                                                             self.str_table_service,
+                                                             self.build_ele_list,
+                                                             self.control_props_list,
+                                                             [])
+            self.init_placement_coord_input()
+
+        self.__input_mode = value
 
     def on_preview_draw(self):
         """ Called when an input in the dialog line is done (e.g. input of a coordinate or rotation angle).
@@ -157,14 +196,13 @@ class FixturePlacementInteractor(BaseInteractor):
             name:   the name of the property
             value:  new value for property
         """
-        # when visual script is loaded, pass the argument to the visual script
-        if name == "SnapByRadioGroup" and value == "SnapByRay":
+        if name == "SnapByRadioGroup" and value != "SnapByPoint":
             AllplanIFW.HighlightService.CancelAllHighlightedElements(self.coord_input.GetInputViewDocumentID())
-        if self.visual_script_service is not None:
-            print("modify_element for visual_script_service...")
+
+        # in placement mode, pass the argument to the visual script service
+        if self.input_mode == self.InputMode.PLACEMENT:
             self.visual_script_service.modify_element_property(page, name, value)
         else:
-            print("modify_element for main_palette_service...")
             if self.main_palette_service.modify_element_property(page, name, value):
                 self.main_palette_service.update_palette(-1, False)
 
@@ -190,8 +228,7 @@ class FixturePlacementInteractor(BaseInteractor):
     def on_mouse_leave(self):
         """ Called when the mouse leaves the viewport window.
         The preview is drawn in its last position."""
-        if self.visual_script_service is not None:
-            self.on_preview_draw()
+        self.on_preview_draw()
 
     def set_active_palette_page_index(self, active_page_index: int):
         """ Called page in the property palette was changed, but also when a dialog
@@ -201,21 +238,9 @@ class FixturePlacementInteractor(BaseInteractor):
             active_page_index: index of the active page, starting from 0
         """
 
-        # when after closing the dialog for .pyp file selection a new and non-empty path is detected,
-        # the visual script service is initialized
-        if active_page_index == 0 and \
-                self.build_ele_list[0].FixtureFilePath.value != "" and \
-                self.fixture_file_path != self.build_ele.FixtureFilePath.value:
-
-            self.fixture_file_path = self.build_ele.FixtureFilePath.value
-            # close the initial palette
-            self.main_palette_service.close_palette()
-
-            # initialize the palette with control properties of the visual script
-            self.visual_script_service = self.create_vs_service(self.fixture_file_path)
-
-            # initialize the coordinate input for the fixture placement
-            self.init_placement_coord_input()
+        # directly after closing the dialog for .pyp file selection start the placement mode
+        if active_page_index == 0 and self.build_ele.FixtureFilePath.value.endswith(".pyp") and self.input_mode == self.InputMode.SELECTION:
+            self.input_mode = self.InputMode.PLACEMENT
 
     def on_cancel_function(self) -> bool:
         """Check for input function cancel in case of ESC
@@ -224,15 +249,8 @@ class FixturePlacementInteractor(BaseInteractor):
             True when python part can be closed after the event, False when it should still run
         """
 
-        if self.visual_script_service is not None:
-            # terminate the visual script and show the main palette
-            self.visual_script_service = None
-            self.build_ele_list[0].FixtureFilePath.value = ""
-
-            # show the initial palette
-            self.main_palette_service.refresh_palette(self.build_ele_list, self.control_props_list)
-            self.main_palette_service.update_palette(-1, True)
-            self.coord_input.InitFirstElementInput(AllplanIFW.InputStringConvert("Select fixture to place"))
+        if self.input_mode == self.InputMode.PLACEMENT:
+            self.input_mode = self.InputMode.SELECTION
 
             return False
 
@@ -244,7 +262,7 @@ class FixturePlacementInteractor(BaseInteractor):
         the PythonPart. All the palettes are closed and the PythonPart is terminated.
 
         """
-        if self.visual_script_service is not None:
+        if self.input_mode == self.InputMode.PLACEMENT and self.visual_script_service is not None:
             self.visual_script_service.on_cancel_function()
 
         self.main_palette_service.close_palette()
@@ -265,7 +283,8 @@ class FixturePlacementInteractor(BaseInteractor):
         """
 
         # do nothing, if no fixture specified
-        if self.visual_script_service is None:
+        if self.input_mode == self.InputMode.SELECTION:
+            #TODO: implement pythonPart selection here
             return True
 
         self.placement_point = self.coord_input.GetInputPoint(mouse_msg, pnt, msg_info).GetPoint()
@@ -279,13 +298,10 @@ class FixturePlacementInteractor(BaseInteractor):
                 self.placement_matrix = self.snap.snap_by_point(self.placement_point,
                                                                 self.placement_angle,
                                                                 mouse_msg, pnt, msg_info)
-
         self.draw_preview()
 
         if not self.coord_input.IsMouseMove(mouse_msg):
-
             self.create_elements()
-
             self.init_placement_coord_input()
 
         return True
@@ -297,17 +313,20 @@ class FixturePlacementInteractor(BaseInteractor):
             -   elements should be created all at once
             -   attributes should be assigned before creation
         """
-        vs_python_part_elements = self.visual_script_service.create_pythonpart(AllplanGeo.Matrix3D(),
-                                                                               AllplanGeo.Matrix3D())
+        if self.visual_script_service is not None:
+            vs_python_part_elements = self.visual_script_service.create_pythonpart(AllplanGeo.Matrix3D(),
+                                                                                   AllplanGeo.Matrix3D())
+        else:
+            vs_python_part_elements = []
 
 
         # Creating the PythonPart in the model, when mouse click detected
-        # TODO: create one list with model_elements (pythonpart + recess) and create them at the end of the script
-        elements = AllplanBaseElements.CreateElements(doc           = self.coord_input.GetInputViewDocument(),
-                                                      insertionMat  = self.placement_matrix,
-                                                      modelEleList  = vs_python_part_elements,
-                                                      modelUuidList = [],
-                                                      assoRefObj    = None)
+        # TODO: use PyhtonPartTransaction
+        AllplanBaseElements.CreateElements(doc           = self.coord_input.GetInputViewDocument(),
+                                           insertionMat  = self.placement_matrix,
+                                           modelEleList  = vs_python_part_elements,
+                                           modelUuidList = [],
+                                           assoRefObj    = None)
 
     def init_placement_coord_input(self):
         """Initialize the coordinate input with the correct settings"""
@@ -326,9 +345,12 @@ class FixturePlacementInteractor(BaseInteractor):
         """Draw the element preview in the viewport using current values for the placement point,
         normal vector and additional rotation"""
 
-        if self.visual_script_service is not None:
+        if self.input_mode == self.InputMode.PLACEMENT and self.visual_script_service is not None:
             AllplanBaseElements.DrawElementPreview(self.coord_input.GetInputViewDocument(),
                                                    self.placement_matrix,
                                                    self.visual_script_service.get_preview_elements(),
                                                    bDirectDraw  = False,    # FIXME: preview is not shown in the UVS
                                                    assoRefObj   = None)
+        elif self.input_mode == self.InputMode.MOVE:
+            # TODO: implement the preview for the
+            return
