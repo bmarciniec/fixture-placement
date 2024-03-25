@@ -27,20 +27,18 @@ from .SnapToSolid import SnapToSolid
 print('FixturePlacement.py Loaded')
 
 
-def check_allplan_version(_build_ele, version):
-    """
-    Check the current Allplan version
+def check_allplan_version(_build_ele: BuildingElement, version: float) -> bool:
+    """Check the current Allplan version
 
     Args:
         _build_ele: the building element.
         version:    the current Allplan version
 
     Returns:
-        True/False if version is supported by this script
+        True if compatible with the used Allplan version, false otherwise
     """
 
-    # Support all versions
-    return float(version) >= 2025
+    return float(version) >= 2025     #script is compatible only with Allplan 2025 and newer
 
 
 def create_interactor(coord_input        : AllplanIFW.CoordinateInput,
@@ -50,27 +48,45 @@ def create_interactor(coord_input        : AllplanIFW.CoordinateInput,
                       build_ele_composite: BuildingElementComposite,
                       control_props_list : list[BuildingElementControlProperties],
                       _modify_uuid_list  : ModificationElementList) -> Any                 :
-    """
-    Create the interactor
+    """Create the interactor
 
     Args:
-        coord_input:               coordinate input
-        _pyp_path:                 path of the pyp file
-        global_str_table_service:  global string table service
-        build_ele_list:            building element list
-        build_ele_composite:       building element composite
-        control_props_list:        control properties list
-        _modify_uuid_list:         UUIDs of the existing elements in the modification mode
+        coord_input:                coordinate input
+        pyp_path:                   path of the pyp file
+        str_table_service:          global string table service
+        build_ele_list:             building element list
+        build_ele_composite:        building element composite
+        control_props_list:         control properties list
+        _modify_uuid_list:          UUIDs of the existing elements in the modification mode
 
       Returns:
           Created interactor object
       """
-    return FixturePlacementInteractor(coord_input, pyp_path, str_table_service, build_ele_list, build_ele_composite,
+    return PypPlacementInteractor(coord_input, pyp_path, str_table_service, build_ele_list, build_ele_composite,
                                       control_props_list)
 
 
-class FixturePlacementInteractor(BaseInteractor):
-    """Definition of class WallGeometryInteractor"""
+class PypPlacementInteractor(BaseInteractor):
+    """Interactor for placing a PythonPart created with VisualScripting
+
+    This interactor allows the user to place a PythonPart coded with VisualScripting
+    using the snap to solid face functionality (implemented in SnapToSolid class).
+
+    This interactor has three input modes (see InutMode class). The workflow is as follows:
+    -   python part starts in SELECT mode
+    -   the user can now pick up an existing PythonPart to move it, or select a .pyp file with a PythonPart
+        made with VisualScript to place it
+    -   in the first case, it switches to MOVE mode
+        -   selected PythonPart is drawn at the cursor point and can be placed by click
+        -   the original placement point is used as tracking point
+        -   clicking will place the PyP at the clicked point and switch back to SELECT mode
+        -   hitting ESC will abort the process; the selected PythonPart appears at its original position;
+            interactor switches back to SELECT mode
+    -   in the second case, open file dialog appears
+        -   after selecting the .pyp file, interactor switches to PLACE mode
+        -   the selected VS-PythonPart is drawn at the cursor and can be places multiple times
+        -   to switch back to SELECT mode, ESC must be hit
+    """
 
     class InputMode(enum.IntEnum):
         """ Definition of the input modes"""
@@ -88,7 +104,16 @@ class FixturePlacementInteractor(BaseInteractor):
                  build_ele_list     : list[BuildingElement],
                  build_ele_composite: BuildingElementComposite,
                  control_props_list : list[BuildingElementControlProperties]):
-        """Initialize"""
+        """Initialize
+
+        Args:
+            coord_input:            API object representing user coordinated input in the viewport
+            pyp_path:               path to .pyp file
+            str_table_service:      global string table service for localization
+            build_ele_list:         building element list
+            build_ele_composite:    building element composite
+            control_props_list:     control properties list
+        """
 
         self.__input_mode             = self.InputMode.SELECT
         self.coord_input              = coord_input
@@ -132,7 +157,7 @@ class FixturePlacementInteractor(BaseInteractor):
         return AllplanIFW.ElementSelectFilterSetting(selection_query, False)
 
     @property
-    def input_mode(self) -> FixturePlacementInteractor.InputMode:
+    def input_mode(self) -> PypPlacementInteractor.InputMode:
         """Property for the current input mode.
 
         Setting to MOVE initializes coordinate input
@@ -148,12 +173,12 @@ class FixturePlacementInteractor(BaseInteractor):
         return self.__input_mode
 
     @input_mode.setter
-    def input_mode(self, value: FixturePlacementInteractor.InputMode):
+    def input_mode(self, value: PypPlacementInteractor.InputMode):
         # by changing the mode to selection, close VS palette and show default palette
         if value == self.InputMode.SELECT:
             if self.visual_script_service is not None:
                 self.visual_script_service = None
-                self.build_ele.FixtureFilePath.value = ""
+                self.build_ele.FixtureFilePath.value = ""           # type: ignore
                 self.main_palette_service.refresh_palette(self.build_ele_list, self.control_props_list)
                 self.main_palette_service.update_palette(-1, True)
 
@@ -168,7 +193,7 @@ class FixturePlacementInteractor(BaseInteractor):
             self.coord_input.SetElementFilter(self.pythonpart_filter)
 
         elif value == self.InputMode.PLACE:
-            if not (vs_pythonpart_path := self.build_ele.FixtureFilePath.value).endswith(".pyp"):
+            if not (vs_pythonpart_path := self.build_ele.FixtureFilePath.value).endswith(".pyp"):           # type: ignore
                 raise ValueError(f"The path to the VS-PythonPart is invalid: {vs_pythonpart_path}]")
 
             self.main_palette_service.close_palette()
@@ -194,7 +219,7 @@ class FixturePlacementInteractor(BaseInteractor):
         self.placement_point     = self.coord_input.GetCurrentPoint().GetPoint()
         self.placement_angle.Rad = self.coord_input.GetInputControlValue()
 
-        if self.build_ele_list[0].SnapByRadioGroup.value == "SnapByRay":
+        if self.build_ele_list[0].SnapByRadioGroup.value == "SnapByRay":           # type: ignore
             self.placement_matrix = self.snap.snap_by_ray(self.placement_point,
                                                           self.placement_angle)
         else:
@@ -328,7 +353,7 @@ class FixturePlacementInteractor(BaseInteractor):
                                                                   self.trace_pnt,
                                                                   self.input_mode == self.InputMode.MOVE).GetPoint()
 
-            if self.build_ele_list[0].SnapByRadioGroup.value == "SnapByRay":
+            if self.build_ele_list[0].SnapByRadioGroup.value == "SnapByRay":           # type: ignore
                 self.placement_matrix = self.snap.snap_by_ray(self.placement_point,
                                                               self.placement_angle,
                                                               mouse_msg, msg_info)
@@ -396,8 +421,6 @@ class FixturePlacementInteractor(BaseInteractor):
             pyp_props.Matrix = self.placement_matrix
             self.selected_pythonpart.MacroPlacementProperties = pyp_props
             AllplanBaseElements.ModifyElements(self.doc, [self.selected_pythonpart])
-
-        return
 
     def init_placement_coord_input(self):
         """Initialize the coordinate input
