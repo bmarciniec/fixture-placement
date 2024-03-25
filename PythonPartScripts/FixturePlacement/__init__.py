@@ -354,12 +354,14 @@ class FixturePlacementInteractor(BaseInteractor):
         """
         # get python object
         pythonpart_adapter       = self.coord_input.GetSelectedElements()
+        pythonpart_assoc_view    = self.coord_input.GetSelectedElementAssocView()
         self.selected_pythonpart = cast(AllplanBasisElements.MacroPlacementElement,
                                         AllplanBaseElements.GetElements(pythonpart_adapter)[0])
-        # reset the placement matrix
+        # get the placement matrix to establish trace point and reset it to identity
         placement_props        = self.selected_pythonpart.MacroPlacementProperties
         translation_vec        = placement_props.Matrix.GetTranslationVector()
         self.trace_pnt         = AllplanGeo.Point3D(translation_vec.X, translation_vec.Y, translation_vec.Z)
+        self.trace_pnt         *= pythonpart_assoc_view.GetTransformationMatrix()
         placement_props.Matrix = AllplanGeo.Matrix3D()
 
         self.selected_pythonpart.SetMacroPlacementProperties(placement_props)
