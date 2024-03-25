@@ -16,6 +16,7 @@ from BuildingElement import BuildingElement
 from BuildingElementComposite import BuildingElementComposite
 from BuildingElementControlProperties import BuildingElementControlProperties
 from BuildingElementPaletteService import BuildingElementPaletteService
+from ControlPropertiesUtil import ControlPropertiesUtil
 from PythonPartTransaction import PythonPartTransaction
 from StringTableService import StringTableService
 from TypeCollections.ModificationElementList import ModificationElementList
@@ -24,6 +25,7 @@ from VisualScriptService import VisualScriptService
 from .SnapToSolid import SnapToSolid
 
 print('FixturePlacement.py Loaded')
+
 
 def check_allplan_version(_build_ele, version):
     """
@@ -39,6 +41,7 @@ def check_allplan_version(_build_ele, version):
 
     # Support all versions
     return float(version) >= 2025
+
 
 def create_interactor(coord_input        : AllplanIFW.CoordinateInput,
                       pyp_path           : str,
@@ -78,7 +81,6 @@ class FixturePlacementInteractor(BaseInteractor):
         MOVE = 2
         """Input mode, where the user moves an existing PythonPart with the snap functionality"""
 
-
     def __init__(self,
                  coord_input        : AllplanIFW.CoordinateInput,
                  pyp_path           : str,
@@ -111,10 +113,12 @@ class FixturePlacementInteractor(BaseInteractor):
                                                                   pyp_path)
         self.main_palette_service.show_palette(self.build_ele_list[0].script_name)
 
-        self.input_mode             = self.InputMode.SELECT
+        # the initial mode is the selection mode
+        self.input_mode = self.InputMode.SELECT
 
-        # show the main palette and message in the dialog line
-        # self.coord_input.InitFirstElementInput(AllplanIFW.InputStringConvert("Select fixture to place"))
+        # the button to select a VS-PythonPart should be disabled in the MOVE mode
+        self.ctrl_prop_util = ControlPropertiesUtil(control_props_list, build_ele_list)
+        self.ctrl_prop_util.set_enable_function("FixtureFilePath",lambda: self.input_mode == self.InputMode.MOVE)
 
     @property
     def pythonpart_filter(self) -> AllplanIFW.ElementSelectFilterSetting:
@@ -155,6 +159,7 @@ class FixturePlacementInteractor(BaseInteractor):
 
             elif self.input_mode == self.InputMode.MOVE:
                 AllplanIFW.VisibleService.ShowAllElements()
+                self.main_palette_service.update_palette(-1, True)
 
             self.selected_pythonpart = AllplanBasisElements.MacroPlacementElement()
 
@@ -176,6 +181,7 @@ class FixturePlacementInteractor(BaseInteractor):
             self.init_placement_coord_input()
         else:
             self.init_placement_coord_input()
+            self.main_palette_service.update_palette(-1, True)
 
         self.__input_mode = value
 
@@ -250,7 +256,7 @@ class FixturePlacementInteractor(BaseInteractor):
         Args:
             active_page_index: index of the active page, starting from 0
         """
-        fixture_path = self.build_ele.FixtureFilePath.value # type: ignore
+        fixture_path = self.build_ele.FixtureFilePath.value  # type: ignore
 
         if active_page_index == 0 and fixture_path.endswith(".pyp") and self.input_mode == self.InputMode.SELECT:
             self.input_mode = self.InputMode.PLACE
