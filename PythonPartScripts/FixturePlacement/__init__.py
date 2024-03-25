@@ -377,17 +377,19 @@ class FixturePlacementInteractor(BaseInteractor):
             elements_to_create = self.visual_script_service.create_pythonpart(AllplanGeo.Matrix3D(),
                                                                               AllplanGeo.Matrix3D())
 
+            pyp_transaction = PythonPartTransaction(self.doc)
+            pyp_transaction.execute(self.placement_matrix,
+                                    self.coord_input.GetViewWorldProjection(),
+                                    elements_to_create,
+                                    ModificationElementList())
+
         elif self.input_mode == self.InputMode.MOVE:
-            elements_to_create = [self.selected_pythonpart]
+            pyp_props = self.selected_pythonpart.MacroPlacementProperties
+            pyp_props.Matrix = self.placement_matrix
+            self.selected_pythonpart.MacroPlacementProperties = pyp_props
+            AllplanBaseElements.ModifyElements(self.doc, [self.selected_pythonpart])
 
-        else:
-            return
-
-        pyp_transaction = PythonPartTransaction(self.doc)
-        pyp_transaction.execute(self.placement_matrix,
-                                self.coord_input.GetViewWorldProjection(),
-                                elements_to_create,
-                                ModificationElementList())
+        return
 
     def init_placement_coord_input(self):
         """Initialize the coordinate input
