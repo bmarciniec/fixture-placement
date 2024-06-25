@@ -59,7 +59,7 @@ class SnapToSolid():
         self._filter = AllplanIFW.ElementSelectFilterSetting(filter            = selection_query,
                                                              bSnoopAllElements = False)
 
-    def _find_nearest_face(self, polyhedron: AllplanGeo.Polyhedron3D, point: AllplanGeo.Point3D) -> tuple[float, int]:
+    def _find_nearest_face(self, polyhedron: AllplanGeo.Polyhedron3D, point: AllplanGeo.Point3D) -> tuple[int, float]:
         """Finds the face of a given polyhedron, whose plane is closest to the given point
 
         Args:

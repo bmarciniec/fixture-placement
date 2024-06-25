@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import enum
 import os
+
 from typing import Any, cast
 
 import NemAll_Python_BaseElements as AllplanBaseElements
@@ -11,6 +12,7 @@ import NemAll_Python_BasisElements as AllplanBasisElements
 import NemAll_Python_Geometry as AllplanGeo
 import NemAll_Python_IFW_ElementAdapter as AllplanElementAdapter
 import NemAll_Python_IFW_Input as AllplanIFW
+
 from BaseInteractor import BaseInteractor
 from BuildingElement import BuildingElement
 from BuildingElementComposite import BuildingElementComposite
@@ -297,7 +299,7 @@ class PypPlacementInteractor(BaseInteractor):
         Returns:
             True when should be terminated, False when it should still run.
         """
-        if self.input_mode in [self.InputMode.PLACE, self.InputMode.MOVE]:
+        if self.input_mode in  {self.InputMode.PLACE, self.InputMode.MOVE}:
             if self.visual_script_service is not None:
                 vs_on_cancel_result = self.visual_script_service.on_cancel_function()
                 if not vs_on_cancel_result:
@@ -369,7 +371,7 @@ class PypPlacementInteractor(BaseInteractor):
                 self.pick_up_pythonpart()
                 self.input_mode = self.InputMode.MOVE
 
-            elif self.input_mode in [self.InputMode.PLACE, self.InputMode.MOVE]:
+            elif self.input_mode in {self.InputMode.PLACE, self.InputMode.MOVE}:
                 self.create_elements()
                 if self.input_mode == self.InputMode.MOVE:
                     self.input_mode = self.InputMode.SELECT
