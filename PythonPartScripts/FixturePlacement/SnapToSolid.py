@@ -35,6 +35,7 @@ class SnapToSolid():
         """
         # set initial values of private properties
         self._polyhedron  = AllplanGeo.Polyhedron3D()
+        self._ref_element = AllplanElementAdapter.BaseElementAdapter()
         self._coord_input = coord_input
         self._normal_vec  = AllplanGeo.Vector3D(0, 0, 1)
 
@@ -58,6 +59,10 @@ class SnapToSolid():
         selection_query   = AllplanIFW.SelectionQuery([ElementFilter()])
         self._filter = AllplanIFW.ElementSelectFilterSetting(filter            = selection_query,
                                                              bSnoopAllElements = False)
+
+    @property
+    def reference_element(self) -> AllplanElementAdapter.BaseElementAdapter:
+        return self._ref_element
 
     def _find_nearest_face(self, polyhedron: AllplanGeo.Polyhedron3D, point: AllplanGeo.Point3D) -> tuple[int, float]:
         """Finds the face of a given polyhedron, whose plane is closest to the given point
@@ -233,14 +238,15 @@ class SnapToSolid():
                                                            False, True, False,
                                                            self._filter)
         if not element_detected:
+            self._ref_element = AllplanElementAdapter.BaseElementAdapter()
             return self._calc_placement_matrix(normal_vec    = self._normal_vec,    # align with last known normal vector
                                                placement_pnt = input_pnt,           # place in the given point, no translation
                                                z_rotation    = rotation)
 
-        found_element = self._coord_input.GetSelectedElement()
+        self._ref_element = self._coord_input.GetSelectedElement()
 
         face_detected, _, intersection_ray = \
-            AllplanBaseElements.FaceSelectService.SelectPolyhedronFace(found_element,
+            AllplanBaseElements.FaceSelectService.SelectPolyhedronFace(self._ref_element,
                                                                        view_pnt,
                                                                        True,
                                                                        view_world_proj,
@@ -325,19 +331,21 @@ class SnapToSolid():
                             this value, no snapping is performed
 
         Returns:
-            normal vector of the polygon face, where the point was found
+            normal vector of the polyhedron face, where the point was found
         """
         # in case of mouse movement, search for element
         if view_pnt != AllplanGeo.Point2D():
 
             # if element is found, get it
             if self._coord_input.SelectGeometryElement(mouse_msg, view_pnt, msg_info, False):
-                element = self._coord_input.GetSelectedElement()
+                self._ref_element = self._coord_input.GetSelectedElement()
 
                 # if found element has a valid polyhedron geometry, override the previous reference polyhedron
-                if isinstance((phed := element.GetModelGeometry()), AllplanGeo.Polyhedron3D) and phed.IsValid():
+                if isinstance((phed := self._ref_element.GetModelGeometry()), AllplanGeo.Polyhedron3D) and phed.IsValid():
                     self._polyhedron = phed
-                    AllplanIFW.HighlightService.HighlightElements(AllplanElementAdapter.BaseElementAdapterList([element]))
+                    AllplanIFW.HighlightService.HighlightElements(AllplanElementAdapter.BaseElementAdapterList([self._ref_element]))
+            else:
+                self._ref_element = AllplanElementAdapter.BaseElementAdapter()
 
         # perform snap, if there is a reference polyhedron to snap to
         if self._polyhedron != self._calc_placement_matrix(self._normal_vec, input_pnt, rotation):

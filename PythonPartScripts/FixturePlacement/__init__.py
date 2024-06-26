@@ -24,6 +24,7 @@ from StringTableService import StringTableService
 from TypeCollections.ModificationElementList import ModificationElementList
 from VisualScriptService import VisualScriptService
 
+from .OpeningUtil import OpeningUtil
 from .SnapToSolid import SnapToSolid
 
 print('FixturePlacement.py Loaded')
@@ -74,7 +75,7 @@ class PypPlacementInteractor(BaseInteractor):
     This interactor allows the user to place a PythonPart coded with VisualScripting
     using the snap to solid face functionality (implemented in SnapToSolid class).
 
-    This interactor has three input modes (see InutMode class). The workflow is as follows:
+    This interactor has three input modes (see InputMode class). The workflow is as follows:
     -   python part starts in SELECT mode
     -   the user can now pick up an existing PythonPart to move it, or select a .pyp file with a PythonPart
         made with VisualScript to place it
@@ -131,6 +132,7 @@ class PypPlacementInteractor(BaseInteractor):
         self.control_props_list       = control_props_list
         self.visual_script_service    = None
         self.snap                     = SnapToSolid(self.coord_input)
+        self.input_mode               = self.InputMode.SELECT
 
         # initialize the service for the main palette
         self.main_palette_service = BuildingElementPaletteService(self.build_ele_list,
@@ -140,12 +142,9 @@ class PypPlacementInteractor(BaseInteractor):
                                                                   pyp_path)
         self.main_palette_service.show_palette(self.build_ele_list[0].script_name)
 
-        # the initial mode is the selection mode
-        self.input_mode = self.InputMode.SELECT
-
         # the button to select a VS-PythonPart should be disabled in the MOVE mode
-        self.ctrl_prop_util = ControlPropertiesUtil(control_props_list, build_ele_list)
-        self.ctrl_prop_util.set_enable_function("FixtureFilePath",lambda: self.input_mode == self.InputMode.MOVE)
+        # self.ctrl_prop_util = ControlPropertiesUtil(control_props_list, build_ele_list)
+        # self.ctrl_prop_util.set_enable_function("FixtureFilePath",lambda: self.input_mode != self.InputMode.MOVE)
 
     @property
     def pythonpart_filter(self) -> AllplanIFW.ElementSelectFilterSetting:
@@ -170,7 +169,7 @@ class PypPlacementInteractor(BaseInteractor):
             Current input mode
 
         Raises:
-            ValueError: when by switching to PLACEMENT the path to VS-pythonpart is invalid
+            ValueError: when by switching to PLACEMENT the path to VS-PythonPart is invalid
         """
         return self.__input_mode
 
@@ -301,9 +300,8 @@ class PypPlacementInteractor(BaseInteractor):
         """
         if self.input_mode in  {self.InputMode.PLACE, self.InputMode.MOVE}:
             if self.visual_script_service is not None:
-                vs_on_cancel_result = self.visual_script_service.on_cancel_function()
-                if not vs_on_cancel_result:
-                    return False
+                return self.visual_script_service.on_cancel_function()
+
             self.input_mode = self.InputMode.SELECT
             return False
 
@@ -409,14 +407,32 @@ class PypPlacementInteractor(BaseInteractor):
         In MOVE mode modifies (moves) the selected PythonPart.
         """
         if self.input_mode == self.InputMode.PLACE and self.visual_script_service is not None:
-            elements_to_create = self.visual_script_service.create_pythonpart(AllplanGeo.Matrix3D(),
-                                                                              AllplanGeo.Matrix3D())
-
             pyp_transaction = PythonPartTransaction(self.doc)
-            pyp_transaction.execute(self.placement_matrix,
+
+            # create fixture
+            fixture = self.visual_script_service.create_pythonpart(AllplanGeo.Matrix3D(),
+                                                                   AllplanGeo.Matrix3D())
+
+            pyp_transaction.execute(self.placement_matrix,      # fixture is defined in LOCAL coordinate system
                                     self.coord_input.GetViewWorldProjection(),
-                                    elements_to_create,
+                                    fixture,
                                     ModificationElementList())
+
+            # create opening
+            if self.build_ele.CreateNiche.value:
+                try:
+                    opening = OpeningUtil.create_opening_in_wall(self.snap.reference_element,
+                                                                 self.placement_matrix,
+                                                                 self.build_ele.OpeningWidth.value,
+                                                                 self.build_ele.OpeningDepth.value,
+                                                                 self.build_ele.OpeningHeight.value)
+                except ValueError:
+                    return
+
+                pyp_transaction.execute(AllplanGeo.Matrix3D(),      # opening is already in GLOBAL coordinate system
+                                        self.coord_input.GetViewWorldProjection(),
+                                        opening,
+                                        ModificationElementList())
 
         elif self.input_mode == self.InputMode.MOVE:
             pyp_props = self.selected_pythonpart.MacroPlacementProperties

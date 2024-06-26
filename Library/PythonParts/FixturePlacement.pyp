@@ -46,7 +46,33 @@
                     <ValueType>RadioButton</ValueType>
                 </Parameter>
             </Parameter>
-
+            <Parameter>
+                <Name>CreateNiche</Name>
+                <Text>Create niche</Text>
+                <Value>False</Value>
+                <ValueType>CheckBox</ValueType>
+            </Parameter>
+            <Parameter>
+                <Name>OpeningWidth</Name>
+                <Text>Width</Text>
+                <Value>200</Value>
+                <ValueType>Length</ValueType>
+                <Visible>CreateNiche</Visible>
+            </Parameter>
+            <Parameter>
+                <Name>OpeningHeight</Name>
+                <Text>Height</Text>
+                <Value>200</Value>
+                <ValueType>Length</ValueType>
+                <Visible>CreateNiche</Visible>
+            </Parameter>
+            <Parameter>
+                <Name>OpeningDepth</Name>
+                <Text>Depth</Text>
+                <Value>50</Value>
+                <ValueType>Length</ValueType>
+                <Visible>CreateNiche</Visible>
+            </Parameter>
         </Parameter>
     </Page>
 </Element>
