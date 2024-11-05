@@ -5,6 +5,9 @@ set /p targetPath="Please enter the Path to Usr or Std: "
 
 set scriptDir=%~dp0
 
+if not exist "%targetPath%\PythonPartsScripts" (
+    mkdir "%targetPath%\PythonPartsScripts"
+)
 mklink /D "%targetPath%\Library\FixturePlacement" "%scriptDir%Library\PythonParts"
 mklink /D "%targetPath%\PythonPartsScripts\FixturePlacement" "%scriptDir%PythonPartScripts\FixturePlacement"
 
