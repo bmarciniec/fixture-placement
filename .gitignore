@@ -1,3 +1,4 @@
 *.pyc
 ___pyp__
 *.code-workspace
+.vscode
