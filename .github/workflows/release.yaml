@@ -1,4 +1,4 @@
-name: Release Allep plugin
+name: Release Allep
 
 on:
   push:
