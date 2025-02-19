@@ -11,16 +11,12 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: Checkout specific directories and file
-        run: |
-          mkdir -p Library PythonPartsScripts
-          git checkout HEAD -- Library
-          git checkout HEAD -- PythonPartsScripts
-          git checkout HEAD -- install-config.yml
-
+      - uses: actions/checkout@v3
       - name: Create allep file
-        run: |
-          zip -r FixturePlacement.allep Library PythonPartsScripts install-config.yml
+        uses: vimtor/action-zip@v1.1
+        with:
+          files: Library/ PythonPartsScripts/ install-config.yml
+          dest: FixturePlacement.allep
 
       - name: Create release
         env:
