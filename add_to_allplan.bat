@@ -8,7 +8,7 @@ set scriptDir=%~dp0
 if not exist "%targetPath%\PythonPartsScripts" (
     mkdir "%targetPath%\PythonPartsScripts"
 )
-mklink /D "%targetPath%\Library\FixturePlacement" "%scriptDir%Library\PythonParts"
+mklink /D "%targetPath%\Library\FixturePlacement" "%scriptDir%Library"
 mklink /D "%targetPath%\PythonPartsScripts\FixturePlacement" "%scriptDir%PythonPartScripts\FixturePlacement"
 
 echo "PythonPart installed in Allplan. You'll find it in Library -> FixturePlacement -> FixturePlacement. Press any key to continue"
