@@ -16,6 +16,7 @@ jobs:
         uses: vimtor/action-zip@v1.1
         with:
           files: Library/ PythonPartsScripts/ install-config.yml
+          recursive: false
           dest: FixturePlacement.allep
 
       - name: Create release
