@@ -1,7 +1,7 @@
 plugin:
   name: FixturePlacement
   UUID: f86d7b11-096b-4f0c-8702-5bce3a45b88a
-  version: 2025.0.1
+  version: 2025.0.2
   developer: Allplan GmbH
   default-language: en
   min-allplan-version: 2025
