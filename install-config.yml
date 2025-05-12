@@ -7,3 +7,12 @@ plugin:
   min-allplan-version: 2026
 installation:
   target-location: USR
+
+tools:
+  - id: place-fixture
+    pyp: Library\Allplan GmbH\Fixture placement.pyp
+    display-name:
+      en: Fixture placement
+    icons:
+      small: PythonPartsActionbar\allplan_gmbh\fixture_placement\fixture_placement_24.png
+      large: PythonPartsActionbar\allplan_gmbh\fixture_placement\fixture_placement_128.png
