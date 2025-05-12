@@ -90,6 +90,7 @@ class PypPlacementInteractor(BaseInteractor):
         self.control_props_list       = control_props_list
         self.visual_script_service    = None
         self.snap                     = SnapToSolid(self.coord_input)
+        self.ctrl_prop_util           = ControlPropertiesUtil(control_props_list, build_ele_list)
 
         # initialize the service for the main palette
         self.main_palette_service = BuildingElementPaletteService(self.build_ele_list,
@@ -103,8 +104,6 @@ class PypPlacementInteractor(BaseInteractor):
         self.input_mode = self.InputMode.SELECT
 
         # the button to select a VS-PythonPart should be disabled in the MOVE mode
-        self.ctrl_prop_util = ControlPropertiesUtil(control_props_list, build_ele_list)
-        self.ctrl_prop_util.set_enable_function("VsPyPSelectButton", lambda: self.input_mode == self.InputMode.MOVE)
 
     @property
     def pythonpart_filter(self) -> AllplanIFW.ElementSelectFilterSetting:
@@ -137,6 +136,8 @@ class PypPlacementInteractor(BaseInteractor):
     def input_mode(self, value: PypPlacementInteractor.InputMode):
         # by changing the mode to selection, close VS palette and show default palette
         if value == self.InputMode.SELECT:
+            self.ctrl_prop_util.set_enable_condition("VsPyPSelectButton", "True")
+
             if self.visual_script_service is not None:
                 self.visual_script_service = None
                 self.build_ele.get_existing_property("SelectedPath").value = ""
@@ -158,6 +159,7 @@ class PypPlacementInteractor(BaseInteractor):
             if not (vs_pythonpart_path := self.build_ele.get_existing_property("SelectedPath").value).endswith(".pyp"):
                 raise ValueError(f"The path to the VS-PythonPart is invalid: {vs_pythonpart_path}]")
 
+            self.ctrl_prop_util.set_enable_condition("VsPyPSelectButton", "False")
             self.main_palette_service.close_palette()
             self.visual_script_service = VisualScriptService(self.coord_input,
                                                              vs_pythonpart_path,
@@ -169,6 +171,7 @@ class PypPlacementInteractor(BaseInteractor):
                                                        self.control_props_list)
             self._init_placement_coord_input()
         else:
+            self.ctrl_prop_util.set_enable_condition("VsPyPSelectButton", "False")
             self._init_placement_coord_input()
             self.main_palette_service.update_palette(-1, True)
 

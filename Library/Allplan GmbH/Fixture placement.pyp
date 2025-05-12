@@ -30,6 +30,7 @@
                 <Text>Browse ...</Text>
                 <EventId>1000</EventId>
                 <ValueType>Button</ValueType>
+                <Enable>SelectedPath == ""</Enable>
               </Parameter>
             </Parameters>
           </Parameter>
