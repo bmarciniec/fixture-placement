@@ -7,5 +7,3 @@ plugin:
   min-allplan-version: 2026
 installation:
   target-location: USR
-  Library: Library
-  PythonPartsScripts: PythonPartsScripts
