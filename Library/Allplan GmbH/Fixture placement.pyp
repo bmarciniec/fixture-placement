@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Element>
     <Script>
-        <Name>allplan-gmbh\FixturePlacement.py</Name>
+        <Name>allplan_gmbh\fixture_placement.py</Name>
         <Title>FixturePlacement</Title>
         <Version>0.2</Version>
         <Interactor>True</Interactor>
